@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CryptoZombies - Modern NFT Platform</title>
+  <link rel="icon" href="favicon.ico">
+  <script language="javascript" type="text/javascript"
+    src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <script language="javascript" type="text/javascript"
+    src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.2.7-rc.0/web3.min.js"></script>
+  <script language="javascript" type="text/javascript" src="cryptozombies_abi.js"></script>
+  <script language="javascript" type="text/javascript" src="zombieGenerator.js"></script>
+  <link rel="stylesheet" href="./style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <!-- Header Section -->
+  <header class="header">
+    <div class="container">
+      <div class="logo">
+        <h1>🧟 CryptoZombies</h1>
+      </div>
+      <nav class="nav">
+        <span id="accountAddress">Connect Wallet</span>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <h2 class="hero-title">Welcome to CryptoZombies</h2>
+      <p class="hero-subtitle">Create, collect, and trade unique zombie NFTs</p>
+    </div>
+  </section>
+
+  <!-- Transaction Status -->
+  <div id="txStatus" class="tx-status"></div>
+
+    <!-- Zombies Grid -->
+  <section class="zombies-section">
+    <div class="container">
+      <h3 class="section-title">Your Zombies Collection</h3>
+      <div id="zombies" class="zombies-grid">
+        <!-- Dynamically populated list of zombies -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Action Buttons Section -->
+  <section class="actions-section">
+    <div class="container">
+      <div class="button-grid">
+        <button class="btn btn-primary showZombieButton">
+          <span class="btn-icon">👁️</span> Show Zombies
+        </button>
+        <button class="btn btn-success createzombieButton">
+          <span class="btn-icon">➕</span> Create Zombie
+        </button>
+        <button class="btn btn-warning levelupButton">
+          <span class="btn-icon">⬆️</span> Level Up
+        </button>
+        <button class="btn btn-danger deleteZombieButton">
+          <span class="btn-icon">🗑️</span> Delete Zombie
+        </button>
+        <button class="btn btn-info createmultipleZombieButton">
+          <span class="btn-icon">➕➕</span> Create Multiple
+        </button>
+        <button class="btn btn-purple showNft" onclick="marketnfts()">
+          <span class="btn-icon">🛒</span> NFT Marketplace
+        </button>
+      </div>
+      
+      <div class="transfer-section">
+        <select class="recipientDropdown modern-select">
+          <option value="">-- Select Recipient Account --</option>
+        </select>
+        <button class="btn btn-secondary transferZombieButton">
+          <span class="btn-icon">📤</span> Transfer
+        </button>
+      </div>
+    </div>
+  </section>
+
+
+
+  <!-- Marketplace Section -->
+  <section class="marketplace-section">
+    <div class="container">
+      <h3 class="section-title">NFT Marketplace</h3>
+      <div id="marketplace" class="marketplace-grid">
+        <!-- Dynamically populated marketplace for buying other zombies -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2025 CryptoZombies. Built with ❤️ on Ethereum</p>
+    </div>
+  </footer>
+
+
+  <script>
+
+    var cryptoZombies;
+    var userAccount;
+    const showZombieButton = document.querySelector('.showZombieButton');
+    const createzombieButton = document.querySelector('.createzombieButton');
+    const levelupButton = document.querySelector('.levelupButton');
+    const deleteZombieButton = document.querySelector('.deleteZombieButton'); // Add a new button for deletion
+    const createmultipleZombieButton = document.querySelector('.createmultipleZombieButton');
+    const showNft = document.querySelector('.showNft');
+
+    async function fetchSecrets() {
+      try {
+        const response = await fetch('build/contracts/ZombieOwnership.json');
+        const secrets = await response.json();
+        return secrets;
+      } catch (error) {
+        console.error('Error fetching secrets:', error);
+        return null;
+      }
+    }
+
+    async function startApp() {
+
+      //ZombieOwnership contratc address
+      var cryptoZombiesAddress = "";
+
+      const secrets = await fetchSecrets();
+      console.log("Fetched secrets:", secrets);
+      
+      // Get the current network ID from MetaMask
+      const networkId = await web3.eth.net.getId();
+      console.log("Connected to network ID:", networkId);
+      
+      // Check if contract is deployed on the current network
+      if (secrets && secrets.networks && secrets.networks[networkId]) {
+        cryptoZombiesAddress = secrets.networks[networkId].address;
+        console.log("Contract found on network " + networkId + " at address: " + cryptoZombiesAddress);
+        $("#txStatus").text("✅ Contract found at: " + cryptoZombiesAddress);
+      } else if (secrets && secrets.networks && secrets.networks['5777']) {
+        // Fallback: Show error if not on correct network
+        console.error("Wrong network! Contract is deployed on network 5777, but you're connected to network " + networkId);
+        $("#txStatus").text("⚠️ Error: Please switch MetaMask to network 5777 (Ganache). Currently on network: " + networkId);
+        alert("Wrong network! Please switch MetaMask to the Ganache network (Network ID: 5777).\n\nContract address: " + secrets.networks['5777'].address);
+        return;
+      } else {
+        console.log("Address not found in the provided JSON.");
+        $("#txStatus").text("⚠️ Error: Contract not found! Please ensure Ganache is running and contracts are deployed.");
+        return; // Stop execution if contract not found
+      }
+
+      cryptoZombies = new web3.eth.Contract(cryptoZombiesABI, cryptoZombiesAddress);
+      console.log("Contract initialized:", cryptoZombies);
+      $("#txStatus").text("✅ Connected to contract: " + cryptoZombiesAddress.substring(0, 10) + "...");
+
+
+      //the following code from Lesson 6, chapter 5 is obsolete
+      //     var accountInterval = setInterval(function () {
+
+      //      if (web3.eth.accounts[0] !== userAccount) {
+      //userAccount = web3.eth.accounts[0];
+
+      //     getZombiesByOwner(userAccount)
+      //      .then(displayZombies);
+      //  }
+      // }, 100);
+
+      cryptoZombies.events.Transfer({ filter: { _to: userAccount } })
+        .on("data", function (event) {
+          let data = event.returnValues;
+          getZombiesByOwner(userAccount).then(displayZombies);
+        }).on("error", console.error);
+    }
+
+    function displayZombies(ids) {
+      $("#zombies").empty();
+      for (let id of ids) {
+        getZombieDetails(id).then((zombie) => {
+          let imageUrl = getZombieImageURL(zombie.dna);
+          $("#zombies").append(`
+                <div class="zombie-card" style="display: flex; flex-direction: column; gap: 0;">
+                    <div class="zombie-card-header" style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; padding: 1rem 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <input type="checkbox" class="zombie-checkbox" value="${id}" data-id="${id}">
+                            <h3 class="zombie-name" style="margin: 0; font-size: 1.25rem;">${zombie.name}</h3>
+                        </div>
+                        <div style="text-align: center;">
+                            <span style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 500;">DNA: ${zombie.dna}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="zombie-level-badge">Lvl ${zombie.level}</span>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 0;">
+                        <div class="zombie-image-container" style="display: flex; align-items: center; justify-content: center; padding: 1.5rem;">
+                            <img src="${imageUrl}" alt="${zombie.name}" class="zombie-image"/>
+                        </div>
+                        <div class="zombie-actions" style="display: flex; flex-direction: column; justify-content: center; gap: 0.75rem; padding: 1.5rem;">
+                            <input type="text" class="zombieNameInput modern-input" placeholder="New Name">
+                            <button class="btn btn-sm btn-outline changeNameButton" data-id="${id}" level-id="${zombie.level}">
+                                <span class="btn-icon">✏️</span> Rename
+                            </button>
+                            <button class="btn btn-sm btn-outline changeDnaButton" data-id="${id}" level-id="${zombie.level}" onclick="changeDnaButtons(${id}, ${zombie.level})">
+                                <span class="btn-icon">🧬</span> Change DNA
+                            </button>
+                            <button class="btn btn-sm btn-success listOnNftButton" data-id="${id}" data-name="${zombie.name}">
+                                <span class="btn-icon">🏷️</span> List for Sale
+                            </button>
+                            <button class="btn btn-sm btn-danger cancelOnNftButton" data-id="${id}" data-name="${zombie.name}">
+                                <span class="btn-icon">❌</span> Cancel Sale
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `);
+        });
+      }
+
+    }
+
+    // Function to list zombie for sale
+    async function listZombieForSale(zombieId, price) {
+      const pricetowei = web3.utils.toWei(price.toString(), "ether");
+      try {
+
+        // Call the smart contract method to list the zombie
+        await cryptoZombies.methods.listZombieForSale(zombieId, pricetowei)
+          .send({ from: userAccount })
+          .on("receipt", function (receipt) {
+            console.log("Zombie listed for sale!", receipt);
+          })
+          .on("error", function (error) {
+            console.error("Failed to list zombie for sale:", error);
+          });
+
+        alert(`Zombie ${zombieId} listed for sale at ${price} ETH.`);
+      } catch (error) {
+        console.error("Error listing zombie for sale: ", error.message);
+        alert("Error listing zombie for sale.");
+      }
+    }
+
+
+    $(document).on('click', '.listOnNftButton', function () {
+      const zombieId = $(this).attr("data-id");
+      const zombieName = $(this).attr("data-name");
+
+      const price = prompt(`Enter the price in ETH to list ${zombieName} for sale:`);
+
+      if (price && price > 0) {
+        listZombieForSale(zombieId, price);
+      } else {
+        alert("Please enter a valid price.");
+      }
+    });
+
+    $(document).on('click', '.cancelOnNftButton', async function () {
+      const zombieId = $(this).attr("data-id");
+      
+      await cryptoZombies.methods.cancelZombieSale(zombieId)
+          .send({ from: userAccount })
+          .on("receipt", function (receipt) {
+            console.log("Zombie canceled for sale!", receipt);
+          })
+          .on("error", function (error) {
+            console.error("Failed to canceled zombie for sale:", error);
+          });
+    });
+
+
+    $(document).on('click', '.changeNameButton', function () {
+      const zombieId = $(this).attr("data-id");
+      const newName = $(this).siblings(".zombieNameInput").val().trim();
+
+      if (!newName) {
+        $("#txStatus").text("Please enter a valid name.");
+        return;
+      }
+
+      changeZombieName(zombieId, newName);
+    });
+
+    function changeDnaButtons(zombieId, zombielevel) {
+
+      // Disable the button after it is clicked to prevent multiple submissions
+      $(this).prop('disabled', true);
+      $(this).text('Changing DNA...');
+
+      const newDna = Math.floor(Math.random() * 999999);
+      const newDnaValue = newDna * 100;
+
+      if (zombielevel < 5) { // Corrected level check to 5
+        $("#txStatus").text("You can only change DNA for zombies at level 5 or above.");
+        // Re-enable the button after the operation
+        $(this).prop('disabled', false);
+        $(this).text('Change DNA');
+        return;
+      }
+
+      $("#txStatus").text("Changing DNA...");
+
+      // Call the changeZombieDna function to perform the transaction
+      try {
+        return cryptoZombies.methods.changeDna(zombieId, newDnaValue)
+          .send({ from: userAccount })
+          .on("receipt", function (receipt) {
+            $("#txStatus").text("Zombie DNA changed successfully!");
+            getZombiesByOwner(userAccount).then(displayZombies);
+          })
+          .on("error", function (error) {
+            $("#txStatus").text(error);
+          });
+        // // Successfully changed DNA
+        // $(this).text('DNA Changed');
+      } catch (error) {
+        $("#txStatus").text("Error changing DNA.");
+        // Re-enable the button in case of error
+        $(this).prop('disabled', false);
+        $(this).text('Change DNA');
+      }
+
+    }
+
+
+
+
+
+
+    function createRandomZombie(name) {
+
+
+      $("#txStatus").text("Creating new zombie on the blockchain. This may take a while...");
+
+      return cryptoZombies.methods.createRandomZombie(name)
+        .send({ from: userAccount })
+        .on("receipt", function (receipt) {
+          $("#txStatus").text("Successfully created " + name + "!");
+
+          getZombiesByOwner(userAccount).then(displayZombies);
+        })
+        .on("error", function (error) {
+
+          $("#txStatus").text(error);
+        });
+    }
+
+    function createMultipleZombie(name, count) {
+      $("#txStatus").text("Creating multiple zombies on the blockchain. This may take a while...");
+      for (let i = 0; i < count; i++) {
+        name = name + i;
+        cryptoZombies.methods.createMultipleZombies(name)  // Pass only the 'name' parameter
+          .send({ from: userAccount })
+          .on("receipt", function (receipt) {
+            $("#txStatus").text("Successfully created " + name + "!");
+            getZombiesByOwner(userAccount).then(displayZombies);
+          })
+          .on("error", function (error) {
+            $("#txStatus").text(error);
+          });
+      }
+    }
+
+
+    function feedOnKitty(zombieId, kittyId) {
+      $("#txStatus").text("Eating a kitty. This may take a while...");
+      return cryptoZombies.methods.feedOnKitty(zombieId, kittyId)
+        .send({ from: userAccount })
+        .on("receipt", function (receipt) {
+          $("#txStatus").text("Ate a kitty and spawned a new Zombie!");
+          getZombiesByOwner(userAccount).then(displayZombies);
+        })
+        .on("error", function (error) {
+          $("#txStatus").text(error);
+        });
+    }
+
+    function levelUp(zombieId) {
+      $("#txStatus").text("Leveling up your zombie...");
+      return cryptoZombies.methods.levelUp(zombieId)
+        .send({ from: userAccount, value: web3.utils.toWei("0.001", "ether") })
+        .on("receipt", function (receipt) {
+          $("#txStatus").text("Power overwhelming! Zombie successfully leveled up");
+        })
+        .on("error", function (error) {
+          $("#txStatus").text(error);
+        });
+    }
+
+    async function changeZombieDna(zombieId, newDna) {
+      $("#txStatus").text("Changing DNA...");
+
+      // Fetch the zombie details
+      const zombie = await getZombieDetails(zombieId);
+
+      // Check if the zombie's level is less than 5
+      if (zombie.level < 5) {
+        $("#txStatus").text("You can only change DNA for zombies at level 5 or above.");
+        return;  // Exit the function early
+      }
+
+      // Proceed with the DNA change if the level is sufficient
+      return cryptoZombies.methods.changeDna(zombieId, newDna)
+        .send({ from: userAccount })
+        .on("receipt", function (receipt) {
+          $("#txStatus").text("Zombie DNA changed successfully!");
+          getZombiesByOwner(userAccount).then(displayZombies);
+        })
+        .on("error", function (error) {
+          $("#txStatus").text(error);
+        });
+    }
+
+    async function changeZombieName(zombieId, newName) {
+      if (!newName.trim()) {
+        $("#txStatus").text("Please enter a valid name.");
+        return;
+      }
+
+      const zombie = await getZombieDetails(zombieId);
+
+      if (zombie.level < 2) {
+        $("#txStatus").text("You can only change the name for zombies at level 2 or above.");
+        return;
+      }
+
+      $("#txStatus").text("Changing zombie name...");
+
+      return cryptoZombies.methods.changeName(zombieId, newName)
+        .send({ from: userAccount })
+        .on("receipt", function (receipt) {
+          $("#txStatus").text("Zombie name changed successfully!");
+          getZombiesByOwner(userAccount).then(displayZombies);
+        })
+        .on("error", function (error) {
+          $("#txStatus").text(error);
+        });
+    }
+
+
+
+    function deleteZombie(zombieId) {
+      $("#txStatus").text("Deleting zombie...");
+
+      return cryptoZombies.methods.deleteZombie(zombieId)
+        .send({ from: userAccount })
+        .on("receipt", function (receipt) {
+          $("#txStatus").text("Zombie deleted successfully!");
+          getZombiesByOwner(userAccount).then(displayZombies);
+        })
+        .on("error", function (error) {
+          $("#txStatus").text(error);
+        });
+    }
+
+
+
+    function getZombieDetails(id) {
+      return cryptoZombies.methods.zombies(id).call()
+    }
+
+    function zombieToOwner(id) {
+      return cryptoZombies.methods.zombieToOwner(id).call()
+    }
+
+    function getZombiesByOwner(owner) {
+      return cryptoZombies.methods.getZombiesByOwner(owner).call()
+    }
+
+    window.addEventListener('load', async () => {
+      // Modern dapp browsers...
+      if (window.ethereum) {
+        window.web3 = new Web3(ethereum);
+        try {
+          // Request account access if needed
+          const accounts = await ethereum.enable();
+          // Acccounts now exposed
+          userAccount = accounts[0];
+          console.log("Connected account:", userAccount);
+          
+          // Check network ID
+          const networkId = await web3.eth.net.getId();
+          console.log("Current network ID:", networkId);
+          
+          if (networkId !== 1337 && networkId !== 5777) { // Accept either 1337 or 5777 for Ganache
+            $('#accountAddress').text('⚠️ Wrong Network!');
+            $("#txStatus").text("⚠️ Please connect MetaMask to Ganache (Network ID: 5777, RPC: http://127.0.0.1:7545)");
+            alert("Wrong Network! Please connect MetaMask to your local Ganache network.\n\nNetwork Name: Ganache\nRPC URL: http://127.0.0.1:7545\nChain ID: 5777\nCurrency Symbol: ETH");
+            return;
+          }
+          
+          // Update account address in header
+          $('#accountAddress').text(userAccount.substring(0, 6) + '...' + userAccount.substring(38));
+          startApp()
+        } catch (error) {
+          // User denied account access...
+          console.error("MetaMask error:", error);
+          $('#accountAddress').text('Connect Wallet');
+          $("#txStatus").text("Please connect your MetaMask wallet");
+        }
+      }
+      // Legacy dapp browsers...
+      else if (window.web3) {
+        window.web3 = new Web3(web3.currentProvider);
+        // Acccounts always exposed
+        userAccount = web3.eth.accounts[0];
+        $('#accountAddress').text(userAccount.substring(0, 6) + '...' + userAccount.substring(38));
+        startApp()
+      }
+      // Non-dapp browsers...
+      else {
+        console.log('Non-Ethereum browser detected. You should consider trying MetaMask!');
+        $('#accountAddress').text('MetaMask Required');
+        $("#txStatus").text("Please install MetaMask browser extension");
+      }
+    });
+
+    //the following code from Lesson 6, chapter 2 is obsolete
+    //metamask no longer inject web3 since early 2021
+    //window.addEventListener('load', function () {
+
+    //    if (typeof web3 !== 'undefined') {
+    //     web3js = new Web3(web3.currentProvider);
+    //   } else {
+
+    //  }
+
+
+    //  startApp()
+
+    //  }) 
+
+    ethereum.on('accountsChanged', (accounts) => {
+      window.location.reload();
+    });
+
+    ethereum.on('chainChanged', (chainId) => {
+      window.location.reload();
+    });
+
+
+    createzombieButton.addEventListener('click', () => {
+      const zombieName = prompt("Enter a name for your zombie:");
+      if (zombieName) {
+        createRandomZombie(zombieName);
+      }
+    });
+
+
+    showZombieButton.addEventListener('click', () => {
+      getZombiesByOwner(userAccount)
+        .then(displayZombies);
+        getAccounts();
+
+    });
+
+    levelupButton.addEventListener('click', async () => {
+      const selectedZombieIds = [];
+
+      document.querySelectorAll('.zombie-checkbox:checked').forEach((checkbox) => {
+        selectedZombieIds.push(checkbox.value);
+      });
+
+      if (selectedZombieIds.length === 0) {
+        $("#txStatus").text("Please select at least one zombie to level up.");
+        return;
+      }
+
+      $("#txStatus").text("Leveling up selected zombies...");
+
+      for (let zombieId of selectedZombieIds) {
+        await cryptoZombies.methods.levelUp(zombieId)
+          .send({ from: userAccount, value: web3.utils.toWei("0.001", "ether") })
+          .on("receipt", function (receipt) {
+            console.log(`Zombie ${zombieId} leveled up successfully!`);
+            $("#txStatus").text(`Zombie ${zombieId} leveled up successfully!`);
+          })
+          .on("error", function (error) {
+            console.error(`Error leveling up Zombie ${zombieId}:`, error);
+            $("#txStatus").text(`Error leveling up Zombie ${zombieId}: ${error.message}`);
+          });
+      }
+
+      // Fetch latest data after level-up
+      getZombiesByOwner(userAccount).then(displayZombies);
+    });
+
+
+
+    // changeDnaButton.addEventListener('click', async () => {
+    //   const zombies = await getZombiesByOwner(userAccount);
+    //   if (zombies.length > 0) {
+    //     const zombieId = zombies[0];
+    //     var newDna = Math.floor(Math.random() * 999999);
+    //     newDna = newDna * 100;
+    //     changeZombieDna(zombieId, newDna);
+    //   } else {
+    //     $("#txStatus").text("You have no zombies to modify.");
+    //   }
+    // });
+
+    // changeNameButton.addEventListener('click', async () => {
+    //   const newName = document.getElementById("newZombieName").value;
+    //   const zombies = await getZombiesByOwner(userAccount);
+
+    //   if (zombies.length > 0) {
+    //     const zombieId = zombies[0]; // Change the first zombie's name (modify if needed)
+    //     changeZombieName(zombieId, newName);
+    //   } else {
+    //     $("#txStatus").text("You have no zombies to rename.");
+    //   }
+    // });
+
+    deleteZombieButton.addEventListener('click', async () => {
+      const selectedZombieIds = [];
+      document.querySelectorAll('.zombie-checkbox:checked').forEach((checkbox) => {
+        selectedZombieIds.push(checkbox.value);
+      });
+
+      if (selectedZombieIds.length === 0) {
+        $("#txStatus").text("Please select at least one zombie to delete.");
+        return;
+      }
+
+      $("#txStatus").text("Deleting selected zombies...");
+
+      for (let zombieId of selectedZombieIds) {
+        await deleteZombie(zombieId);
+      }
+
+      getZombiesByOwner(userAccount).then(displayZombies);
+    });
+
+
+    createmultipleZombieButton.addEventListener('click', () => {
+      const count = prompt("How many zombies do you want to create?", 1); // Prompt the user for the number
+      if (count && count > 0) {
+        createMultipleZombie(userAccount, count);
+      } else {
+        alert("Please enter a valid number.");
+      }
+    });
+
+
+    //display zombie on nft 
+    async function marketnfts() {
+      debugger;
+      let a = await cryptoZombies.methods.getZombiesOnSale().call();
+      let b = await cryptoZombies.methods.getZombiesByOwner(userAccount).call();
+      let c = a.filter(item => !b.includes(item));
+      displaymarketZombies(c);
+    }
+
+    async function displaymarketZombies(ids) {
+      $("#marketplace").empty();
+
+      for (let id of ids) {
+        try {
+          const zombie = await getZombieDetails(id);
+          const saleDetails = await cryptoZombies.methods.zombiesForSale(id).call();
+          const priceInEther = web3.utils.fromWei(saleDetails.price, "ether");
+          let imageUrl = getZombieImageURL(zombie.dna);
+
+          $("#marketplace").append(`
+                <div class="zombie-card" style="display: flex; flex-direction: column; gap: 0;">
+                    <div class="zombie-card-header" style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; padding: 1rem 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <h3 class="zombie-name" style="margin: 0; font-size: 1.25rem;">${zombie.name}</h3>
+                        </div>
+                        <div style="text-align: center;">
+                            <span style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 500;">DNA: ${zombie.dna}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="zombie-level-badge">Lvl ${zombie.level}</span>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 0;">
+                        <div class="zombie-image-container" style="display: flex; align-items: center; justify-content: center; padding: 1.5rem;">
+                            <img src="${imageUrl}" alt="${zombie.name}" class="zombie-image"/>
+                        </div>
+                        <div class="zombie-actions" style="display: flex; flex-direction: column; justify-content: center; gap: 0.75rem; padding: 1.5rem;">
+                            <div style="background: linear-gradient(135deg, var(--success-color), var(--primary-color)); padding: 1rem; border-radius: 8px; text-align: center; margin-bottom: 0.5rem;">
+                                <span style="font-size: 1.1rem; font-weight: 600; color: white;">💰 ${priceInEther} ETH</span>
+                            </div>
+                            <button class="btn btn-success" onclick="buyZombie(${id}, ${priceInEther})" style="width: 100%;">
+                                <span class="btn-icon">🛒</span> Buy Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `);
+
+        } catch (error) {
+          console.error(`Failed to fetch data for zombie ID ${id}:`, error);
+        }
+      }
+    }
+
+    async function buyZombie(zombieId, price) {
+    try {
+            const priceInWei = web3.utils.toWei(price.toString(), "ether");
+
+            await cryptoZombies.methods
+                .buyZombie(zombieId)
+                .send({ from: userAccount, value: priceInWei })
+                .on("receipt", function (receipt) {
+                    console.log("Zombie purchased successfully!", receipt);
+                    alert(`Successfully bought Zombie ID ${zombieId}!`);
+                    
+                    // Refresh the marketplace listing
+                    document.getElementById("zombiesForSaleList").innerHTML = ""; // Clear existing
+                    getZombiesOnMarketplace(); // Refresh the list
+                })
+                .on("error", function (error) {
+                    console.error("Failed to buy zombie:", error);
+                    alert("Error: Unable to purchase zombie. See console for details.");
+                });
+        } catch (error) {
+            console.error("Error buying zombie:", error);
+            alert("Failed to buy zombie. See console for details.");
+        }
+    }
+
+    function transferZombie(zombieId, recipientAddress) {
+    debugger;
+    $("#txStatus").text("Transferring your zombie...");
+
+    cryptoZombies.methods
+        .transferFrom(userAccount, recipientAddress, zombieId)
+        .send({ from: userAccount })
+        .on("receipt", function (receipt) {
+            $("#txStatus").text("Zombie transferred successfully!");
+            getZombiesByOwner(userAccount).then(displayZombies);
+        })
+        .on("error", function (error) {
+            $("#txStatus").text("Error transferring zombie: " + error.message);
+        });
+    }
+
+    let availableAccounts = []; 
+    async function getAccounts() {
+        try {
+            availableAccounts = await ethereum.enable(); 
+            populateAccountDropdown(availableAccounts); 
+        } catch (error) {
+            console.log('User denied account access', error);
+        }
+    }
+
+    function populateAccountDropdown(accounts) {
+        const dropdown = document.querySelector('.recipientDropdown');
+        dropdown.innerHTML = '';
+        const option = document.createElement('option');
+        option.textContent = "-- Select an Account --"; 
+        dropdown.appendChild(option);
+        accounts.forEach(account => {
+            if(userAccount!=account){
+                const option = document.createElement('option');
+                option.value = account;
+                option.textContent = account; 
+                dropdown.appendChild(option);
+            }
+        });
+    }
+
+    document.querySelector('.transferZombieButton').addEventListener('click', () => {
+    debugger;
+    const selectedCheckboxes = document.querySelectorAll('.zombie-checkbox:checked'); // Get all checked checkboxes
+    const recipientAddress = document.querySelector('.recipientDropdown').value;
+    if (recipientAddress && recipientAddress!='-- Select an Account --') {
+        selectedCheckboxes.forEach((checkbox) => {
+            transferZombie(checkbox.getAttribute('data-id'), recipientAddress);
+        });
+    }else {
+        alert('Please select a recipient account to transfer the zombie to.');
+        getAccounts();
+    }
+});
+
+
+
+
+
+  </script>
+</body>
+
+</html>
