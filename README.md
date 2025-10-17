@@ -4,7 +4,7 @@
 2. Yash Patel - 824754618 - yashpatel100800@csu.fullerton.edu
 
 # Repo Link
-https://github.com/yashpatel100800/CryptoZombieProject
+https://github.com/yashpatel100800/CryptoZombieBlockChain
 
 # Video Demo
 https://youtu.be/x-XFsixdI4I?si=suGJTItJRJ3JsP2e
